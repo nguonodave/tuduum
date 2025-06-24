@@ -171,7 +171,7 @@ func movieDetailsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if result.Response == "False" {
-		http.Error(w, "Movie not found", http.StatusNotFound)
+		http.Error(w, "Film not found", http.StatusNotFound)
 		return
 	}
 
