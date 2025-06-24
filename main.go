@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
 	"net/url"
@@ -12,67 +11,63 @@ import (
 	"github.com/joho/godotenv"
 )
 
-type Movie struct {
-	Title  string `json:"Title"`
-	Year   string `json:"Year"`
-	Poster string `json:"Poster"`
-	Type   string `json:"Type"`
-	ImdbID string `json:"imdbID"`
-}
-
-type SearchResponse struct {
-	Search       []Movie `json:"Search"`
-	TotalResults string  `json:"totalResults"`
-	Response     string  `json:"Response"`
-}
-
-// Add new structs for detailed movie response
-type MovieDetails struct {
-	Title      string `json:"Title"`
-	Year       string `json:"Year"`
-	Rated      string `json:"Rated"`
-	Released   string `json:"Released"`
-	Runtime    string `json:"Runtime"`
-	Genre      string `json:"Genre"`
-	Director   string `json:"Director"`
-	Writer     string `json:"Writer"`
-	Actors     string `json:"Actors"`
-	Plot       string `json:"Plot"`
-	Language   string `json:"Language"`
-	Country    string `json:"Country"`
-	Awards     string `json:"Awards"`
-	Poster     string `json:"Poster"`
-	Ratings    []Rating `json:"Ratings"`
-	Metascore  string `json:"Metascore"`
-	ImdbRating string `json:"imdbRating"`
-	ImdbVotes  string `json:"imdbVotes"`
-	ImdbID     string `json:"imdbID"`
-	Type       string `json:"Type"`
-	DVD        string `json:"DVD"`
-	BoxOffice  string `json:"BoxOffice"`
-	Production string `json:"Production"`
-	Website    string `json:"Website"`
-	Response   string `json:"Response"`
-}
-
-type Rating struct {
-	Source string `json:"Source"`
-	Value  string `json:"Value"`
-}
-
-// Add these structs for TMDB response
 type TMDBMovie struct {
-    ID            int     `json:"id"`
-    Title         string  `json:"title"`
-    ReleaseDate   string  `json:"release_date"`
-    PosterPath    string  `json:"poster_path"`
-    VoteAverage   float64 `json:"vote_average"`
-    Overview      string  `json:"overview"`
-    BackdropPath  string  `json:"backdrop_path"`
+	ID          int     `json:"id"`
+	Title       string  `json:"title"`
+	ReleaseDate string  `json:"release_date"`
+	PosterPath  string  `json:"poster_path"`
+	VoteAverage float64 `json:"vote_average"`
+	Overview    string  `json:"overview"`
 }
 
 type TMDBResponse struct {
-    Results []TMDBMovie `json:"results"`
+	Results []TMDBMovie `json:"results"`
+}
+
+type TMDBMovieDetails struct {
+	ID               int                    `json:"id"`
+	Title            string                 `json:"title"`
+	Overview         string                 `json:"overview"`
+	PosterPath       string                 `json:"poster_path"`
+	ReleaseDate      string                 `json:"release_date"`
+	Runtime          int                    `json:"runtime"`
+	VoteAverage      float64                `json:"vote_average"`
+	Genres           []Genre                `json:"genres"`
+	Credits          Credits                `json:"credits"`
+	Videos           Videos                 `json:"videos"`
+	ProductionCompanies []ProductionCompany `json:"production_companies"`
+}
+
+type Genre struct {
+	Name string `json:"name"`
+}
+
+type Credits struct {
+	Cast []CastMember `json:"cast"`
+	Crew []CrewMember `json:"crew"`
+}
+
+type CastMember struct {
+	Name string `json:"name"`
+}
+
+type CrewMember struct {
+	Name string `json:"name"`
+	Job  string `json:"job"`
+}
+
+type Videos struct {
+	Results []Video `json:"results"`
+}
+
+type Video struct {
+	Key  string `json:"key"`
+	Site string `json:"site"`
+	Type string `json:"type"`
+}
+
+type ProductionCompany struct {
+	Name string `json:"name"`
 }
 
 func main() {
@@ -91,7 +86,6 @@ func main() {
 
 	http.HandleFunc("/api/search", searchHandler)
 	http.HandleFunc("/api/movie/", movieDetailsHandler)
-	http.HandleFunc("/api/tmdb/movie/", tmdbMovieDetailsHandler)
 	http.HandleFunc("/api/trending", trendingHandler)
 
 	port := ":8080"
@@ -106,90 +100,80 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	apiKey := os.Getenv("OMDB_API_KEY")
-	// fmt.Println(apiKey)
+	apiKey := os.Getenv("TMDB_API_KEY")
 	if apiKey == "" {
-		http.Error(w, "OMDB API key not configured", http.StatusInternalServerError)
+		http.Error(w, "TMDB API key not configured", http.StatusInternalServerError)
 		return
 	}
 
-	url := fmt.Sprintf("http://www.omdbapi.com/?apikey=%s&s=%s", apiKey, url.QueryEscape(query))
+	url := fmt.Sprintf("https://api.themoviedb.org/3/search/movie?api_key=%s&query=%s", apiKey, url.QueryEscape(query))
 
-	println(url)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Error creating request: %v", err), http.StatusInternalServerError)
+		return
+	}
 
-	resp, err := http.Get(url)
+	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", os.Getenv("TMDB_ACCESS_TOKEN")))
+	req.Header.Add("Accept", "application/json")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Error fetching data: %v", err), http.StatusInternalServerError)
 		return
 	}
 	defer resp.Body.Close()
 
-	// Read the response body first
-    body, err := io.ReadAll(resp.Body)
-    if err != nil {
-        http.Error(w, fmt.Sprintf(`{"error": "Error reading response: %v"}`, err), http.StatusInternalServerError)
-        return
-    }
-
-    var result SearchResponse
-    if err := json.Unmarshal(body, &result); err != nil {
-        http.Error(w, fmt.Sprintf(`{"error": "Error decoding response: %v"}`, err), http.StatusInternalServerError)
-        return
-    }
-
-	// Check if the response is valid
-    if result.Response == "False" {
-        // Try to extract the error message from OMDB
-        var errorResponse struct {
-            Error string `json:"Error"`
-        }
-        if err := json.Unmarshal(body, &errorResponse); err == nil && errorResponse.Error != "" {
-            http.Error(w, fmt.Sprintf(`{"error": "%s"}`, errorResponse.Error), http.StatusNotFound)
-        } else {
-            http.Error(w, `{"error": "No results found"}`, http.StatusNotFound)
-        }
-        return
-    }
-
-    // Limit the number of results to 10
-    if len(result.Search) > 10 {
-        result.Search = result.Search[:10]
-    }
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(result.Search)
-}
-
-func movieDetailsHandler(w http.ResponseWriter, r *http.Request) {
-	imdbID := r.URL.Path[len("/api/movie/"):]
-	if imdbID == "" {
-		http.Error(w, "IMDb ID is required", http.StatusBadRequest)
-		return
-	}
-
-	apiKey := os.Getenv("OMDB_API_KEY")
-	if apiKey == "" {
-		http.Error(w, "OMDB API key not configured", http.StatusInternalServerError)
-		return
-	}
-
-	url := fmt.Sprintf("http://www.omdbapi.com/?apikey=%s&i=%s&plot=full", apiKey, imdbID)
-
-	resp, err := http.Get(url)
-	if err != nil {
-		http.Error(w, fmt.Sprintf("Error fetching data: %v", err), http.StatusInternalServerError)
-		return
-	}
-	defer resp.Body.Close()
-
-	var result MovieDetails
+	var result TMDBResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		http.Error(w, fmt.Sprintf("Error decoding response: %v", err), http.StatusInternalServerError)
 		return
 	}
 
-	if result.Response == "False" {
-		http.Error(w, "Film not found", http.StatusNotFound)
+	if len(result.Results) > 10 {
+		result.Results = result.Results[:10]
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(result.Results)
+}
+
+func movieDetailsHandler(w http.ResponseWriter, r *http.Request) {
+	movieID := r.URL.Path[len("/api/movie/"):]
+	if movieID == "" {
+		http.Error(w, "Movie ID is required", http.StatusBadRequest)
+		return
+	}
+
+	apiKey := os.Getenv("TMDB_API_KEY")
+	if apiKey == "" {
+		http.Error(w, "TMDB API key not configured", http.StatusInternalServerError)
+		return
+	}
+
+	url := fmt.Sprintf("https://api.themoviedb.org/3/movie/%s?api_key=%s&append_to_response=credits,videos", movieID, apiKey)
+	
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Error creating request: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", os.Getenv("TMDB_ACCESS_TOKEN")))
+	req.Header.Add("Accept", "application/json")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Error fetching data: %v", err), http.StatusInternalServerError)
+		return
+	}
+	defer resp.Body.Close()
+
+	var result TMDBMovieDetails
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		http.Error(w, fmt.Sprintf("Error decoding response: %v", err), http.StatusInternalServerError)
 		return
 	}
 
@@ -198,88 +182,41 @@ func movieDetailsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func trendingHandler(w http.ResponseWriter, r *http.Request) {
-    apiKey := os.Getenv("TMDB_API_KEY")
-    if apiKey == "" {
-        http.Error(w, "TMDB API key not configured", http.StatusInternalServerError)
-        return
-    }
+	apiKey := os.Getenv("TMDB_API_KEY")
+	if apiKey == "" {
+		http.Error(w, "TMDB API key not configured", http.StatusInternalServerError)
+		return
+	}
 
-    url := fmt.Sprintf("https://api.themoviedb.org/3/trending/movie/week?api_key=%s", apiKey)
+	url := fmt.Sprintf("https://api.themoviedb.org/3/trending/movie/week?api_key=%s", apiKey)
 
-    req, err := http.NewRequest("GET", url, nil)
-    if err != nil {
-        http.Error(w, fmt.Sprintf("Error creating request: %v", err), http.StatusInternalServerError)
-        return
-    }
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Error creating request: %v", err), http.StatusInternalServerError)
+		return
+	}
 
-    req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", os.Getenv("TMDB_ACCESS_TOKEN")))
-    req.Header.Add("Accept", "application/json")
+	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", os.Getenv("TMDB_ACCESS_TOKEN")))
+	req.Header.Add("Accept", "application/json")
 
-    client := &http.Client{}
-    resp, err := client.Do(req)
-    if err != nil {
-        http.Error(w, fmt.Sprintf("Error fetching data: %v", err), http.StatusInternalServerError)
-        return
-    }
-    defer resp.Body.Close()
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Error fetching data: %v", err), http.StatusInternalServerError)
+		return
+	}
+	defer resp.Body.Close()
 
-    var result TMDBResponse
-    if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-        http.Error(w, fmt.Sprintf("Error decoding response: %v", err), http.StatusInternalServerError)
-        return
-    }
+	var result TMDBResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		http.Error(w, fmt.Sprintf("Error decoding response: %v", err), http.StatusInternalServerError)
+		return
+	}
 
-    if len(result.Results) > 12 {
-        result.Results = result.Results[:12]
-    }
+	if len(result.Results) > 12 {
+		result.Results = result.Results[:12]
+	}
 
-    w.Header().Set("Content-Type", "application/json")
-    json.NewEncoder(w).Encode(result.Results)
-}
-
-func tmdbMovieDetailsHandler(w http.ResponseWriter, r *http.Request) {
-    movieID := r.URL.Path[len("/api/tmdb/movie/"):]
-    if movieID == "" {
-        http.Error(w, "Movie ID is required", http.StatusBadRequest)
-        return
-    }
-
-    apiKey := os.Getenv("TMDB_API_KEY")
-    if apiKey == "" {
-        http.Error(w, "TMDB API key not configured", http.StatusInternalServerError)
-        return
-    }
-
-    url := fmt.Sprintf("https://api.themoviedb.org/3/movie/%s?api_key=%s&append_to_response=credits,videos", movieID, apiKey)
-    
-    req, err := http.NewRequest("GET", url, nil)
-    if err != nil {
-        http.Error(w, fmt.Sprintf("Error creating request: %v", err), http.StatusInternalServerError)
-        return
-    }
-
-    req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", os.Getenv("TMDB_ACCESS_TOKEN")))
-    req.Header.Add("Accept", "application/json")
-
-    client := &http.Client{}
-    resp, err := client.Do(req)
-    if err != nil {
-        http.Error(w, fmt.Sprintf("Error fetching data: %v", err), http.StatusInternalServerError)
-        return
-    }
-    defer resp.Body.Close()
-
-    var result map[string]interface{}
-    if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-        http.Error(w, fmt.Sprintf("Error decoding response: %v", err), http.StatusInternalServerError)
-        return
-    }
-
-    if _, ok := result["success"]; ok && !result["success"].(bool) {
-        http.Error(w, "Movie not found", http.StatusNotFound)
-        return
-    }
-
-    w.Header().Set("Content-Type", "application/json")
-    json.NewEncoder(w).Encode(result)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(result.Results)
 }
