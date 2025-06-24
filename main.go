@@ -75,11 +75,11 @@ func main() {
 		log.Print("No .env file found, using system environment variables")
 	}
 
-	// Serve static files
+	// serve static files
 	fs := http.FileServer(http.Dir("web/static"))
 	http.Handle("/web/static/", http.StripPrefix("/web/static/", fs))
 	
-	// Serve HTML template
+	// serve HTML template
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		http.ServeFile(w, r, "web/templates/index.html")
 	})

@@ -1,4 +1,3 @@
-// DOM Elements
 const searchInput = document.getElementById('searchInput');
 const resultsContainer = document.getElementById('results');
 const watchlistBtn = document.getElementById('watchlistBtn');
@@ -11,7 +10,7 @@ const trendingSection = document.getElementById('trendingSection');
 let debounceTimer;
 let watchlist = JSON.parse(localStorage.getItem('watchlist')) || [];
 
-// Initialize the app
+// initialize the app
 function initApp() {
     loadTrendingMovies();
     setupEventListeners();
@@ -19,7 +18,7 @@ function initApp() {
 }
 
 function setupEventListeners() {
-    // Search functionality
+    // search functionality
     searchInput.addEventListener('input', (e) => {
         clearTimeout(debounceTimer);
         const query = e.target.value.trim();
@@ -34,7 +33,7 @@ function setupEventListeners() {
         }, 500);
     });
 
-    // Watchlist toggle
+    // watchlist toggle
     watchlistBtn.addEventListener('click', () => {
         const isWatchlistVisible = !watchlistView.classList.contains('hidden');
         if (isWatchlistVisible) return;
@@ -48,7 +47,7 @@ function setupEventListeners() {
     });
 }
 
-// Trending Movies
+// trending Movies
 async function loadTrendingMovies() {
     try {
         trendingResults.innerHTML = '<div class="col-span-full text-center py-8">Loading trending movies...</div>';
@@ -95,7 +94,7 @@ function displayTrendingResults(movies) {
     });
 }
 
-// Search Movies
+// search Movies
 async function searchMovies(query) {
     try {
         resultsContainer.innerHTML = '<div class="col-span-full text-center py-8">Loading...</div>';
@@ -148,7 +147,7 @@ function displayResults(movies) {
     });
 }
 
-// Watchlist functionality
+// watchlist functionality
 function addToWatchlist(movie) {
     if (!watchlist.some(item => item.id === movie.id)) {
         watchlist.push({
@@ -220,25 +219,25 @@ function renderWatchlist() {
         </div>
     `).join('');
 
-    // Add event listeners using event delegation
+    // add event listeners using event delegation
     watchlistItems.addEventListener('click', (e) => {
         const target = e.target;
         
-        // Handle "Mark Watched" button
+        // handle "Mark Watched" button
         if (target.classList.contains('toggle-watched')) {
             const movieId = target.getAttribute('data-movieid');
             toggleWatched(movieId);
             e.stopPropagation();
         }
         
-        // Handle "Remove" button
+        // handle "Remove" button
         if (target.classList.contains('remove-from-watchlist')) {
             const movieId = target.getAttribute('data-movieid');
             removeFromWatchlist(movieId);
             e.stopPropagation();
         }
         
-        // Handle clicking on the movie card
+        // handle clicking on the movie card
         const card = target.closest('[data-movieid]');
         if (card && !target.closest('button')) {
             const movieId = card.getAttribute('data-movieid');
@@ -247,7 +246,7 @@ function renderWatchlist() {
     });
 }
 
-// Movie Details
+// movie Details
 async function showMovieDetails(movieId) {
     try {
         const overlay = document.createElement('div');
@@ -290,18 +289,18 @@ async function showMovieDetails(movieId) {
 function renderMovieDetails(movie, overlay, movieId) {
     const content = overlay.querySelector('#movieDetailsContent');
     
-    // Convert movieId to number for consistent comparison
+    // convert movieId to number for consistent comparison
     const movieIdNum = Number(movieId);
     const isInWatchlist = watchlist.some(item => item.id === movieIdNum);
 
-    // Format directors
+    // format directors
     const directors = movie.credits?.crew?.filter(person => person.job === "Director") || [];
     const directorNames = directors.map(d => d.name).join(', ') || "Unknown";
     
-    // Format main cast (first 5)
+    // format main cast (first 5)
     const mainCast = movie.credits?.cast?.slice(0, 5).map(actor => actor.name).join(', ') || "Unknown";
     
-    // Find trailer
+    // find trailer
     const trailer = movie.videos?.results?.find(video => 
         video.type === "Trailer" && video.site === "YouTube"
     );
@@ -375,7 +374,7 @@ function renderMovieDetails(movie, overlay, movieId) {
             watchlistAction.textContent = 'Add to Watchlist';
             watchlistAction.className = 'px-4 py-2 rounded-lg bg-blue-100 text-blue-700';
         } else {
-            // Create a minimal movie object for the watchlist
+            // create a minimal movie object for the watchlist
             const movieForWatchlist = {
                 id: movieIdNum,
                 title: movie.title,
