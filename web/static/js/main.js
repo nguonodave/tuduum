@@ -289,7 +289,10 @@ async function showMovieDetails(movieId) {
 
 function renderMovieDetails(movie, overlay, movieId) {
     const content = overlay.querySelector('#movieDetailsContent');
-    const isInWatchlist = watchlist.some(item => item.id === movieId);
+    
+    // Convert movieId to number for consistent comparison
+    const movieIdNum = Number(movieId);
+    const isInWatchlist = watchlist.some(item => item.id === movieIdNum);
 
     // Format directors
     const directors = movie.credits?.crew?.filter(person => person.job === "Director") || [];
@@ -368,11 +371,20 @@ function renderMovieDetails(movie, overlay, movieId) {
     const watchlistAction = content.querySelector('#watchlistAction');
     watchlistAction.addEventListener('click', () => {
         if (isInWatchlist) {
-            removeFromWatchlist(movieId);
+            removeFromWatchlist(movieIdNum);
             watchlistAction.textContent = 'Add to Watchlist';
             watchlistAction.className = 'px-4 py-2 rounded-lg bg-blue-100 text-blue-700';
         } else {
-            if (addToWatchlist(movie)) {
+            // Create a minimal movie object for the watchlist
+            const movieForWatchlist = {
+                id: movieIdNum,
+                title: movie.title,
+                release_date: movie.release_date,
+                poster_path: movie.poster_path,
+                vote_average: movie.vote_average,
+                watched: false
+            };
+            if (addToWatchlist(movieForWatchlist)) {
                 watchlistAction.textContent = 'Remove from Watchlist';
                 watchlistAction.className = 'px-4 py-2 rounded-lg bg-red-100 text-red-700';
             }
