@@ -18,8 +18,13 @@ searchInput.addEventListener('input', (e) => {
 
 async function searchMovies(query) {
     try {
+        // Ensure we're showing search results
+        watchlistView.classList.add('hidden');
+        searchView.classList.remove('hidden');
+        watchlistBtn.classList.remove('active');
+
         resultsContainer.innerHTML = '<div class="col-span-full text-center py-8">Loading...</div>';
-        
+
         const response = await fetch(`/api/search?query=${encodeURIComponent(query)}`);
         const data = await response.json();
 
@@ -49,9 +54,9 @@ function displayResults(movies) {
     resultsContainer.innerHTML = movies.map(movie => `
         <div class="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow cursor-pointer" data-imdbid="${movie.imdbID}">
             <div class="h-48 bg-gray-200 overflow-hidden">
-                ${movie.Poster !== 'N/A' ? 
-                    `<img src="${movie.Poster}" alt="${movie.Title}" class="w-full h-full object-cover">` : 
-                    `<div class="w-full h-full flex items-center justify-center text-gray-500">No image available</div>`}
+                ${movie.Poster !== 'N/A' ?
+            `<img src="${movie.Poster}" alt="${movie.Title}" class="w-full h-full object-cover">` :
+            `<div class="w-full h-full flex items-center justify-center text-gray-500">No image available</div>`}
             </div>
             <div class="p-4">
                 <h3 class="font-bold text-lg mb-1 truncate">${movie.Title}</h3>
@@ -60,7 +65,6 @@ function displayResults(movies) {
         </div>
     `).join('');
 
-    // Add click event listeners to all movie cards
     document.querySelectorAll('[data-imdbid]').forEach(card => {
         card.addEventListener('click', () => {
             const imdbID = card.getAttribute('data-imdbid');
@@ -71,7 +75,7 @@ function displayResults(movies) {
 
 async function showMovieDetails(imdbID) {
     try {
-        // Create overlay for loading/details
+        // Create overlay
         const overlay = document.createElement('div');
         overlay.className = 'fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 z-50';
         overlay.innerHTML = `
@@ -89,10 +93,9 @@ async function showMovieDetails(imdbID) {
                 </div>
             </div>
         `;
-        
+
         document.body.appendChild(overlay);
-        
-        // Add event listener for close button
+
         overlay.querySelector('#closeDetails').addEventListener('click', () => {
             document.body.removeChild(overlay);
         });
@@ -104,7 +107,7 @@ async function showMovieDetails(imdbID) {
         }
 
         const movie = await response.json();
-        renderMovieDetails(movie, overlay);
+        renderMovieDetails(movie, overlay, imdbID);
     } catch (error) {
         const content = overlay.querySelector('#movieDetailsContent');
         if (content) {
@@ -113,10 +116,10 @@ async function showMovieDetails(imdbID) {
     }
 }
 
-function renderMovieDetails(movie, overlay) {
+function renderMovieDetails(movie, overlay, imdbID) {
     const content = overlay.querySelector('#movieDetailsContent');
-    
-    // Format ratings
+    const isInWatchlist = watchlist.some(item => item.imdbID === imdbID);
+
     const ratingsHTML = movie.Ratings?.map(rating => `
         <div class="mb-2">
             <span class="font-semibold">${rating.Source}:</span> ${rating.Value}
@@ -126,9 +129,15 @@ function renderMovieDetails(movie, overlay) {
     content.innerHTML = `
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div class="md:col-span-1">
-                ${movie.Poster !== 'N/A' ? 
-                    `<img src="${movie.Poster}" alt="${movie.Title}" class="w-full rounded-lg shadow-md">` : 
-                    `<div class="w-full h-64 bg-gray-200 flex items-center justify-center rounded-lg text-gray-500">No image available</div>`}
+                ${movie.Poster !== 'N/A' ?
+            `<img src="${movie.Poster}" alt="${movie.Title}" class="w-full rounded-lg shadow-md">` :
+            `<div class="w-full h-64 bg-gray-200 flex items-center justify-center rounded-lg text-gray-500">No image available</div>`}
+                    
+                <div class="mt-4 flex justify-center">
+                    <button id="watchlistAction" class="px-4 py-2 rounded-lg ${isInWatchlist ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}">
+                        ${isInWatchlist ? 'Remove from Watchlist' : 'Add to Watchlist'}
+                    </button>
+                </div>
             </div>
             <div class="md:col-span-2">
                 <div class="mb-4">
@@ -165,4 +174,137 @@ function renderMovieDetails(movie, overlay) {
             </div>
         </div>
     `;
+
+    const watchlistAction = content.querySelector('#watchlistAction');
+    watchlistAction.addEventListener('click', () => {
+        if (isInWatchlist) {
+            removeFromWatchlist(imdbID);
+            watchlistAction.textContent = 'Add to Watchlist';
+            watchlistAction.className = 'px-4 py-2 rounded-lg bg-blue-100 text-blue-700';
+        } else {
+            if (addToWatchlist(movie)) {
+                watchlistAction.textContent = 'Remove from Watchlist';
+                watchlistAction.className = 'px-4 py-2 rounded-lg bg-red-100 text-red-700';
+            }
+        }
+    });
 }
+
+// Watchlist functionality
+const watchlistBtn = document.getElementById('watchlistBtn');
+const watchlistView = document.getElementById('watchlistView');
+const searchView = document.getElementById('searchView');
+const watchlistItems = document.getElementById('watchlistItems');
+
+let watchlist = JSON.parse(localStorage.getItem('watchlist')) || [];
+
+// Toggle watchlist view
+watchlistBtn.addEventListener('click', () => {
+    const isWatchlistVisible = !watchlistView.classList.contains('hidden');
+    if (isWatchlistVisible) {
+        return
+    }
+
+    watchlistView.classList.toggle('hidden');
+    searchView.classList.toggle('hidden');
+    watchlistBtn.classList.toggle('active');
+
+    searchInput.style.display = "none"
+
+    if (!watchlistView.classList.contains('hidden')) {
+        renderWatchlist();
+    }
+});
+
+// Add to watchlist function (to be called from movie details)
+function addToWatchlist(movie) {
+    if (!watchlist.some(item => item.imdbID === movie.imdbID)) {
+        watchlist.push({
+            imdbID: movie.imdbID,
+            Title: movie.Title,
+            Year: movie.Year,
+            Poster: movie.Poster,
+            Type: movie.Type,
+            watched: false
+        });
+        saveWatchlist();
+        return true;
+    }
+    return false;
+}
+
+// Remove from watchlist
+function removeFromWatchlist(imdbID) {
+    watchlist = watchlist.filter(item => item.imdbID !== imdbID);
+    saveWatchlist();
+}
+
+// Toggle watched status
+function toggleWatched(imdbID) {
+    const item = watchlist.find(item => item.imdbID === imdbID);
+    if (item) {
+        item.watched = !item.watched;
+        saveWatchlist();
+    }
+}
+
+// Save watchlist to localStorage
+function saveWatchlist() {
+    localStorage.setItem('watchlist', JSON.stringify(watchlist));
+    renderWatchlist();
+}
+
+// Render watchlist items
+function renderWatchlist() {
+    if (watchlist.length === 0) {
+        watchlistItems.innerHTML = '<div class="col-span-full text-center py-8">Your watchlist is empty</div>';
+        return;
+    }
+
+    watchlistItems.innerHTML = watchlist.map(item => `
+        <div class="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow relative">
+            ${item.watched ? '<div class="absolute top-2 left-2 bg-green-500 text-white px-2 py-1 rounded text-xs">Watched</div>' : ''}
+            <div class="h-48 bg-gray-200 overflow-hidden">
+                ${item.Poster !== 'N/A' ?
+            `<img src="${item.Poster}" alt="${item.Title}" class="w-full h-full object-cover">` :
+            `<div class="w-full h-full flex items-center justify-center text-gray-500">No image available</div>`}
+            </div>
+            <div class="p-4">
+                <h3 class="font-bold text-lg mb-1 truncate">${item.Title}</h3>
+                <p class="text-gray-600">${item.Year} • ${item.Type}</p>
+                <div class="flex justify-between mt-3">
+                    <button class="toggle-watched text-xs px-2 py-1 rounded ${item.watched ? 'bg-gray-200 text-gray-700' : 'bg-blue-100 text-blue-700'}" data-imdbid="${item.imdbID}">
+                        ${item.watched ? 'Mark Unwatched' : 'Mark Watched'}
+                    </button>
+                    <button class="remove-from-watchlist text-xs px-2 py-1 rounded bg-red-100 text-red-700" data-imdbid="${item.imdbID}">
+                        Remove
+                    </button>
+                </div>
+            </div>
+        </div>
+    `).join('');
+
+    // Add event listeners
+    document.querySelectorAll('.toggle-watched').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleWatched(btn.dataset.imdbid);
+        });
+    });
+
+    document.querySelectorAll('.remove-from-watchlist').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            removeFromWatchlist(btn.dataset.imdbid);
+        });
+    });
+
+    document.querySelectorAll('#watchlistItems [data-imdbid]').forEach(card => {
+        card.addEventListener('click', () => {
+            const imdbID = card.getAttribute('data-imdbid');
+            showMovieDetails(imdbID);
+        });
+    });
+}
+
+renderWatchlist();
