@@ -1,7 +1,5 @@
 # 🎬 Tuduum - Movie Discovery App
 
-![App Screenshot](/path/to/screenshot.png) *(optional)*
-
 ## Features Implemented
 
 - **Search Movies/TV Shows**
