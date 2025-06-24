@@ -3,8 +3,10 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 
 	"github.com/joho/godotenv"
@@ -93,7 +95,9 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	url := fmt.Sprintf("http://www.omdbapi.com/?apikey=%s&s=%s", apiKey, query)
+	url := fmt.Sprintf("http://www.omdbapi.com/?apikey=%s&s=%s", apiKey, url.QueryEscape(query))
+
+	println(url)
 
 	resp, err := http.Get(url)
 	if err != nil {
@@ -102,16 +106,37 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer resp.Body.Close()
 
-	var result SearchResponse
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		http.Error(w, fmt.Sprintf("Error decoding response: %v", err), http.StatusInternalServerError)
-		return
-	}
+	// Read the response body first
+    body, err := io.ReadAll(resp.Body)
+    if err != nil {
+        http.Error(w, fmt.Sprintf(`{"error": "Error reading response: %v"}`, err), http.StatusInternalServerError)
+        return
+    }
 
-	if result.Response == "False" {
-		http.Error(w, "No results found", http.StatusNotFound)
-		return
-	}
+    var result SearchResponse
+    if err := json.Unmarshal(body, &result); err != nil {
+        http.Error(w, fmt.Sprintf(`{"error": "Error decoding response: %v"}`, err), http.StatusInternalServerError)
+        return
+    }
+
+	// Check if the response is valid
+    if result.Response == "False" {
+        // Try to extract the error message from OMDB
+        var errorResponse struct {
+            Error string `json:"Error"`
+        }
+        if err := json.Unmarshal(body, &errorResponse); err == nil && errorResponse.Error != "" {
+            http.Error(w, fmt.Sprintf(`{"error": "%s"}`, errorResponse.Error), http.StatusNotFound)
+        } else {
+            http.Error(w, `{"error": "No results found"}`, http.StatusNotFound)
+        }
+        return
+    }
+
+    // Limit the number of results to 10
+    if len(result.Search) > 10 {
+        result.Search = result.Search[:10]
+    }
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(result.Search)
@@ -146,7 +171,7 @@ func movieDetailsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if result.Response == "False" {
-		http.Error(w, "Movie not found", http.StatusNotFound)
+		http.Error(w, "Film not found", http.StatusNotFound)
 		return
 	}
 
