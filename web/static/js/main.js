@@ -18,8 +18,13 @@ searchInput.addEventListener('input', (e) => {
 
 async function searchMovies(query) {
     try {
+        // Ensure we're showing search results
+        watchlistView.classList.add('hidden');
+        searchView.classList.remove('hidden');
+        watchlistBtn.classList.remove('active');
+
         resultsContainer.innerHTML = '<div class="col-span-full text-center py-8">Loading...</div>';
-        
+
         const response = await fetch(`/api/search?query=${encodeURIComponent(query)}`);
         const data = await response.json();
 
@@ -49,9 +54,9 @@ function displayResults(movies) {
     resultsContainer.innerHTML = movies.map(movie => `
         <div class="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow cursor-pointer" data-imdbid="${movie.imdbID}">
             <div class="h-48 bg-gray-200 overflow-hidden">
-                ${movie.Poster !== 'N/A' ? 
-                    `<img src="${movie.Poster}" alt="${movie.Title}" class="w-full h-full object-cover">` : 
-                    `<div class="w-full h-full flex items-center justify-center text-gray-500">No image available</div>`}
+                ${movie.Poster !== 'N/A' ?
+            `<img src="${movie.Poster}" alt="${movie.Title}" class="w-full h-full object-cover">` :
+            `<div class="w-full h-full flex items-center justify-center text-gray-500">No image available</div>`}
             </div>
             <div class="p-4">
                 <h3 class="font-bold text-lg mb-1 truncate">${movie.Title}</h3>
@@ -88,7 +93,7 @@ async function showMovieDetails(imdbID) {
                 </div>
             </div>
         `;
-        
+
         document.body.appendChild(overlay);
 
         overlay.querySelector('#closeDetails').addEventListener('click', () => {
@@ -124,9 +129,9 @@ function renderMovieDetails(movie, overlay, imdbID) {
     content.innerHTML = `
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div class="md:col-span-1">
-                ${movie.Poster !== 'N/A' ? 
-                    `<img src="${movie.Poster}" alt="${movie.Title}" class="w-full rounded-lg shadow-md">` : 
-                    `<div class="w-full h-64 bg-gray-200 flex items-center justify-center rounded-lg text-gray-500">No image available</div>`}
+                ${movie.Poster !== 'N/A' ?
+            `<img src="${movie.Poster}" alt="${movie.Title}" class="w-full rounded-lg shadow-md">` :
+            `<div class="w-full h-64 bg-gray-200 flex items-center justify-center rounded-lg text-gray-500">No image available</div>`}
                     
                 <div class="mt-4 flex justify-center">
                     <button id="watchlistAction" class="px-4 py-2 rounded-lg ${isInWatchlist ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}">
@@ -195,12 +200,17 @@ let watchlist = JSON.parse(localStorage.getItem('watchlist')) || [];
 
 // Toggle watchlist view
 watchlistBtn.addEventListener('click', () => {
+    const isWatchlistVisible = !watchlistView.classList.contains('hidden');
+    if (isWatchlistVisible) {
+        return
+    }
+
     watchlistView.classList.toggle('hidden');
     searchView.classList.toggle('hidden');
     watchlistBtn.classList.toggle('active');
 
     searchInput.style.display = "none"
-    
+
     if (!watchlistView.classList.contains('hidden')) {
         renderWatchlist();
     }
@@ -255,9 +265,9 @@ function renderWatchlist() {
         <div class="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow relative">
             ${item.watched ? '<div class="absolute top-2 left-2 bg-green-500 text-white px-2 py-1 rounded text-xs">Watched</div>' : ''}
             <div class="h-48 bg-gray-200 overflow-hidden">
-                ${item.Poster !== 'N/A' ? 
-                    `<img src="${item.Poster}" alt="${item.Title}" class="w-full h-full object-cover">` : 
-                    `<div class="w-full h-full flex items-center justify-center text-gray-500">No image available</div>`}
+                ${item.Poster !== 'N/A' ?
+            `<img src="${item.Poster}" alt="${item.Title}" class="w-full h-full object-cover">` :
+            `<div class="w-full h-full flex items-center justify-center text-gray-500">No image available</div>`}
             </div>
             <div class="p-4">
                 <h3 class="font-bold text-lg mb-1 truncate">${item.Title}</h3>
