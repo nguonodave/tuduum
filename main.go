@@ -60,6 +60,21 @@ type Rating struct {
 	Value  string `json:"Value"`
 }
 
+// Add these structs for TMDB response
+type TMDBMovie struct {
+    ID            int     `json:"id"`
+    Title         string  `json:"title"`
+    ReleaseDate   string  `json:"release_date"`
+    PosterPath    string  `json:"poster_path"`
+    VoteAverage   float64 `json:"vote_average"`
+    Overview      string  `json:"overview"`
+    BackdropPath  string  `json:"backdrop_path"`
+}
+
+type TMDBResponse struct {
+    Results []TMDBMovie `json:"results"`
+}
+
 func main() {
 	if err := godotenv.Load(); err != nil {
 		log.Print("No .env file found, using system environment variables")
@@ -75,7 +90,10 @@ func main() {
 	})
 
 	http.HandleFunc("/api/search", searchHandler)
-	http.HandleFunc("/api/movie/", movieDetailsHandler) // New endpoint
+	http.HandleFunc("/api/movie/", movieDetailsHandler)
+	http.HandleFunc("/api/tmdb/movie/", tmdbMovieDetailsHandler)
+	http.HandleFunc("/api/trending", trendingHandler)
+
 	port := ":8080"
 	fmt.Printf("Server running on port %s\n", port)
 	log.Fatal(http.ListenAndServe(port, nil))
@@ -177,4 +195,91 @@ func movieDetailsHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(result)
+}
+
+func trendingHandler(w http.ResponseWriter, r *http.Request) {
+    apiKey := os.Getenv("TMDB_API_KEY")
+    if apiKey == "" {
+        http.Error(w, "TMDB API key not configured", http.StatusInternalServerError)
+        return
+    }
+
+    url := fmt.Sprintf("https://api.themoviedb.org/3/trending/movie/week?api_key=%s", apiKey)
+
+    req, err := http.NewRequest("GET", url, nil)
+    if err != nil {
+        http.Error(w, fmt.Sprintf("Error creating request: %v", err), http.StatusInternalServerError)
+        return
+    }
+
+    req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", os.Getenv("TMDB_ACCESS_TOKEN")))
+    req.Header.Add("Accept", "application/json")
+
+    client := &http.Client{}
+    resp, err := client.Do(req)
+    if err != nil {
+        http.Error(w, fmt.Sprintf("Error fetching data: %v", err), http.StatusInternalServerError)
+        return
+    }
+    defer resp.Body.Close()
+
+    var result TMDBResponse
+    if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+        http.Error(w, fmt.Sprintf("Error decoding response: %v", err), http.StatusInternalServerError)
+        return
+    }
+
+    if len(result.Results) > 12 {
+        result.Results = result.Results[:12]
+    }
+
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(result.Results)
+}
+
+func tmdbMovieDetailsHandler(w http.ResponseWriter, r *http.Request) {
+    movieID := r.URL.Path[len("/api/tmdb/movie/"):]
+    if movieID == "" {
+        http.Error(w, "Movie ID is required", http.StatusBadRequest)
+        return
+    }
+
+    apiKey := os.Getenv("TMDB_API_KEY")
+    if apiKey == "" {
+        http.Error(w, "TMDB API key not configured", http.StatusInternalServerError)
+        return
+    }
+
+    url := fmt.Sprintf("https://api.themoviedb.org/3/movie/%s?api_key=%s&append_to_response=credits,videos", movieID, apiKey)
+    
+    req, err := http.NewRequest("GET", url, nil)
+    if err != nil {
+        http.Error(w, fmt.Sprintf("Error creating request: %v", err), http.StatusInternalServerError)
+        return
+    }
+
+    req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", os.Getenv("TMDB_ACCESS_TOKEN")))
+    req.Header.Add("Accept", "application/json")
+
+    client := &http.Client{}
+    resp, err := client.Do(req)
+    if err != nil {
+        http.Error(w, fmt.Sprintf("Error fetching data: %v", err), http.StatusInternalServerError)
+        return
+    }
+    defer resp.Body.Close()
+
+    var result map[string]interface{}
+    if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+        http.Error(w, fmt.Sprintf("Error decoding response: %v", err), http.StatusInternalServerError)
+        return
+    }
+
+    if _, ok := result["success"]; ok && !result["success"].(bool) {
+        http.Error(w, "Movie not found", http.StatusNotFound)
+        return
+    }
+
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(result)
 }
