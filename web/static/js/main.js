@@ -21,17 +21,22 @@ async function searchMovies(query) {
         resultsContainer.innerHTML = '<div class="col-span-full text-center py-8">Loading...</div>';
         
         const response = await fetch(`/api/search?query=${encodeURIComponent(query)}`);
-        
-        // console.log(response.ok)
+        const data = await response.json();
 
         if (!response.ok) {
-            throw new Error(response.status === 404 ? 'No results found' : 'Failed to fetch data');
+            // Handle custom error messages from our backend
+            const error = data.error || 'Failed to fetch data';
+            throw new Error(error);
         }
 
-        const movies = await response.json();
-        displayResults(movies);
+        displayResults(data);
     } catch (error) {
-        resultsContainer.innerHTML = `<div class="col-span-full text-center py-8 text-red-500">${error.message}</div>`;
+        resultsContainer.innerHTML = `
+            <div class="col-span-full text-center py-8">
+                <div class="text-red-500 mb-2">${error.message}</div>
+                <div class="text-sm text-gray-500">Try a different search term</div>
+            </div>
+        `;
     }
 }
 
