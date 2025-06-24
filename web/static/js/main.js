@@ -166,15 +166,23 @@ function addToWatchlist(movie) {
 }
 
 function removeFromWatchlist(movieId) {
-    watchlist = watchlist.filter(item => item.id !== movieId);
+    watchlist = watchlist.filter(item => item.id.toString() !== movieId.toString());
     saveWatchlist();
+    // refresh the view if we're currently showing the watchlist
+    if (!watchlistView.classList.contains('hidden')) {
+        renderWatchlist();
+    }
 }
 
 function toggleWatched(movieId) {
-    const item = watchlist.find(item => item.id === movieId);
+    const item = watchlist.find(item => item.id.toString() === movieId.toString());
     if (item) {
         item.watched = !item.watched;
         saveWatchlist();
+        // refresh the view if we're currently showing the watchlist
+        if (!watchlistView.classList.contains('hidden')) {
+            renderWatchlist();
+        }
     }
 }
 
@@ -201,10 +209,10 @@ function renderWatchlist() {
                 <h3 class="font-bold text-lg mb-1 truncate">${item.title}</h3>
                 <p class="text-gray-600">${item.release_date ? item.release_date.split('-')[0] : 'N/A'}</p>
                 <div class="flex justify-between mt-3">
-                    <button class="toggle-watched text-xs px-2 py-1 rounded ${item.watched ? 'bg-gray-200 text-gray-700' : 'bg-blue-100 text-blue-700'}" data-movieid="${item.id}">
-                        ${item.watched ? 'Mark Unwatched' : 'Mark Watched'}
+                    <button class="toggle-watched px-3 py-1 rounded ${item.watched ? 'bg-gray-200 text-gray-700' : 'bg-blue-100 text-blue-700'}" data-movieid="${item.id}">
+                        ${item.watched ? '✓ Watched' : 'Mark Watched'}
                     </button>
-                    <button class="remove-from-watchlist text-xs px-2 py-1 rounded bg-red-100 text-red-700" data-movieid="${item.id}">
+                    <button class="remove-from-watchlist px-3 py-1 rounded bg-red-100 text-red-700" data-movieid="${item.id}">
                         Remove
                     </button>
                 </div>
@@ -212,25 +220,30 @@ function renderWatchlist() {
         </div>
     `).join('');
 
-    document.querySelectorAll('.toggle-watched').forEach(btn => {
-        btn.addEventListener('click', (e) => {
+    // Add event listeners using event delegation
+    watchlistItems.addEventListener('click', (e) => {
+        const target = e.target;
+        
+        // Handle "Mark Watched" button
+        if (target.classList.contains('toggle-watched')) {
+            const movieId = target.getAttribute('data-movieid');
+            toggleWatched(movieId);
             e.stopPropagation();
-            toggleWatched(btn.dataset.movieid);
-        });
-    });
-
-    document.querySelectorAll('.remove-from-watchlist').forEach(btn => {
-        btn.addEventListener('click', (e) => {
+        }
+        
+        // Handle "Remove" button
+        if (target.classList.contains('remove-from-watchlist')) {
+            const movieId = target.getAttribute('data-movieid');
+            removeFromWatchlist(movieId);
             e.stopPropagation();
-            removeFromWatchlist(btn.dataset.movieid);
-        });
-    });
-
-    document.querySelectorAll('#watchlistItems [data-movieid]').forEach(card => {
-        card.addEventListener('click', () => {
+        }
+        
+        // Handle clicking on the movie card
+        const card = target.closest('[data-movieid]');
+        if (card && !target.closest('button')) {
             const movieId = card.getAttribute('data-movieid');
             showMovieDetails(movieId);
-        });
+        }
     });
 }
 
